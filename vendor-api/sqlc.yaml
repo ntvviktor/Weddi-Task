@@ -1,7 +1,7 @@
 version: "2"
 sql:
-  - schema: "sql/schema"
-    queries: "sql/queries"
+  - schema: "migrations/schema"
+    queries: "migrations/queries"
     engine: "mysql"
     gen:
       go:

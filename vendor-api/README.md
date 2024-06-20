@@ -21,6 +21,6 @@ go mod download
 
 2. Start the server:
 ```
-go run ./cmd/api
+go run main.go
 ```
 The server will run on port :8080

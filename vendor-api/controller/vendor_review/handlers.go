@@ -1,9 +1,10 @@
-package main
+package controller
 
 import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,31 +12,21 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
+	"weddi.org/vendor-api/config"
 	"weddi.org/vendor-api/internal/database"
+	"weddi.org/vendor-api/utils"
 )
 
-type VendorReview struct {
-	ReviewID 	 string `json:"review_id,omitempty"`
-	VendorID     string `json:"vendor_id"`
-	VendorName   string `json:"vendor_name"`
-	Poster       string `json:"poster"`
-	Date         string `json:"date"`
-	Rating       int32  `json:"rating"`
-	Source       string `json:"source"`
-	Content      string `json:"content"`
-	LinkToSource string `json:"link_to_source"`
-}
-
-func (apiConfig *apiConfig) handleGetVendorReviews(w http.ResponseWriter, req *http.Request) {
-	data, err := apiConfig.DB.GetAllVendorReviews(req.Context())
+func GetVendorReviewsHandler(w http.ResponseWriter, req *http.Request) {
+	data, err := config.DB.GetAllVendorReviews(req.Context())
 	if err != nil {
-		apiConfig.logger.Fatal(err)
-		http.Error(w, "Interal error from database", http.StatusInternalServerError)
+		utils.NewErrorResponse(w, http.StatusInternalServerError, "Interal error from database")
+		log.Fatal(err)
 		return
 	}
-	var convertedData []VendorReview
+	var convertedData []utils.VendorReviewHelper
 	for _, vendorReview := range data {
-		convertedData = append(convertedData, VendorReview{
+		convertedData = append(convertedData, utils.VendorReviewHelper{
             ReviewID:     vendorReview.ReviewID,
             VendorID:     vendorReview.VendorID,
             VendorName:   vendorReview.VendorName,
@@ -50,8 +41,8 @@ func (apiConfig *apiConfig) handleGetVendorReviews(w http.ResponseWriter, req *h
 
 	vendorReviews, err := json.Marshal(convertedData)
 	if err != nil {
-		apiConfig.logger.Fatal(err)
-		http.Error(w, "Interal error in parsing json", http.StatusInternalServerError)
+		utils.NewErrorResponse(w, http.StatusInternalServerError, "Interal error when parsing json")
+		log.Fatal(err)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -59,11 +50,13 @@ func (apiConfig *apiConfig) handleGetVendorReviews(w http.ResponseWriter, req *h
 	w.Write(vendorReviews)
 }
 
-func (apiConfig *apiConfig) handleGetVendorReviewByVendorId(w http.ResponseWriter, req *http.Request) {
+func GetVendorReviewByVendorIdHandler(w http.ResponseWriter, req *http.Request) {
 	vendorId := mux.Vars(req)["id"]
-	vendorReviews, err := apiConfig.getVendorReviewByVendorId(req, vendorId)
+	vendorReviews, err := utils.GetVendorReviewByVendorId(req, vendorId)
 	if err != nil {
-		http.Error(w, "Interal error from database", http.StatusInternalServerError)
+		utils.NewErrorResponse(w, http.StatusInternalServerError, "Interal error from database")
+		log.Fatal(err)
+		return 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -71,11 +64,12 @@ func (apiConfig *apiConfig) handleGetVendorReviewByVendorId(w http.ResponseWrite
 	w.Write(vendorReviews)
 }
 
-func (apiConfig *apiConfig) handleCreateVendorReview(w http.ResponseWriter, req *http.Request) {
-	var params VendorReview
+func CreateVendorReviewHandler(w http.ResponseWriter, req *http.Request) {
+	var params utils.VendorReviewHelper
 	err := json.NewDecoder(req.Body).Decode(&params)
 	if err != nil {
-		http.Error(w, "Bad json request", http.StatusBadRequest)
+		utils.NewErrorResponse(w, http.StatusBadRequest, "Bad JSON request")
+		log.Fatal(err)
 		return
 	}
 
@@ -93,17 +87,17 @@ func (apiConfig *apiConfig) handleCreateVendorReview(w http.ResponseWriter, req 
 		LinkToSource : params.LinkToSource,
 	}
 	
-	err = apiConfig.DB.CreateVendorReview(req.Context(), newVendorReview)
+	err = config.DB.CreateVendorReview(req.Context(), newVendorReview)
 	if err != nil {
-		apiConfig.logger.Fatal(err)
-		http.Error(w, "Interal error from database", http.StatusInternalServerError)
+		utils.NewErrorResponse(w, http.StatusInternalServerError, "Interal error from database")
+		log.Fatal(err)
 		return
 	}
 
-	VendorReview, err := apiConfig.getVendorReviewByReviewId(req, reviewId.String())
+	VendorReview, err := utils.GetVendorReviewByReviewId(req, reviewId.String())
 	if err != nil {
-		apiConfig.logger.Fatal(err)
-		http.Error(w, "Interal error from database", http.StatusInternalServerError)
+		utils.NewErrorResponse(w, http.StatusInternalServerError, "Interal error from database")
+		log.Fatal(err)
 		return
 	}
 
@@ -112,7 +106,7 @@ func (apiConfig *apiConfig) handleCreateVendorReview(w http.ResponseWriter, req 
 	w.Write(VendorReview)
 }
 
-func (apiConfig *apiConfig) handleUpdateVendorReview(w http.ResponseWriter, req *http.Request) {
+func  UpdateVendorReviewHandler(w http.ResponseWriter, req *http.Request) {
 	var params struct {
 		VendorName   string `json:"vendor_name"`
 		Poster       string `json:"poster"`
@@ -123,14 +117,16 @@ func (apiConfig *apiConfig) handleUpdateVendorReview(w http.ResponseWriter, req 
 		LinkToSource string `json:"link_to_source"`
 	}
 	reviewId := mux.Vars(req)["id"]
-	_, err := apiConfig.getVendorReviewByReviewId(req, reviewId)
+	_, err := utils.GetVendorReviewByReviewId(req, reviewId)
 	if err != nil {
-		http.Error(w, "No resource match your review id", http.StatusNotFound)
+		utils.NewErrorResponse(w, http.StatusNotFound, "No resource match your review id")
+		log.Fatal(err)
 		return
 	}
 	err = json.NewDecoder(req.Body).Decode(&params)
 	if err != nil {
-		http.Error(w, "Bad json request", http.StatusBadRequest)
+		utils.NewErrorResponse(w, http.StatusNotFound, "Bad JSON request")
+		log.Fatal(err)
 		return
 	}
 
@@ -145,23 +141,23 @@ func (apiConfig *apiConfig) handleUpdateVendorReview(w http.ResponseWriter, req 
 		ReviewID: reviewId,
 	}
 
-	b, err := json.MarshalIndent(newVendorReview, "", "  ")
-    if err != nil {
-        fmt.Println(err)
-    }
-    fmt.Print(string(b))
+	// b, err := json.MarshalIndent(newVendorReview, "", "  ")
+    // if err != nil {
+    //     fmt.Println(err)
+    // }
+    // fmt.Print(string(b))
 	
-	err = apiConfig.DB.UpdateVendorReview(req.Context(), newVendorReview)
+	err = config.DB.UpdateVendorReview(req.Context(), newVendorReview)
 	if err != nil {
-		apiConfig.logger.Fatal(err)
-		http.Error(w, "Unable to update! Interal error from database", http.StatusInternalServerError)
+		utils.NewErrorResponse(w, http.StatusInternalServerError, "Unable to update! Interal error from database")
+		log.Fatal(err)
 		return
 	}
 
-	VendorReview, err := apiConfig.getVendorReviewByReviewId(req, reviewId)
+	VendorReview, err := utils.GetVendorReviewByReviewId(req, reviewId)
 	if err != nil {
-		apiConfig.logger.Fatal(err)
-		http.Error(w, "Interal error from database", http.StatusInternalServerError)
+		utils.NewErrorResponse(w, http.StatusInternalServerError, "Interal error from database")
+		log.Fatal(err)
 		return
 	}
 
@@ -170,32 +166,32 @@ func (apiConfig *apiConfig) handleUpdateVendorReview(w http.ResponseWriter, req 
 	w.Write(VendorReview)
 }
 
-func (apiConfig *apiConfig) handleDeleteVendorReview(w http.ResponseWriter, req *http.Request) {
+func DeleteVendorReviewHandler(w http.ResponseWriter, req *http.Request) {
 	vendorId := mux.Vars(req)["id"]
-	err := apiConfig.DB.DeleteVendorReviewByReviewId(req.Context(), vendorId)
+	err := config.DB.DeleteVendorReviewByReviewId(req.Context(), vendorId)
 	if err != nil {
-		apiConfig.logger.Fatal(err)
-		http.Error(w, "Interal error from database", http.StatusInternalServerError)
+		utils.NewErrorResponse(w, http.StatusInternalServerError, "Interal error from database")
+		log.Fatal(err)
 		return	
 	}
 	w.WriteHeader(http.StatusOK)
 }
 
-func (apiConfig *apiConfig) handleScrapeReviewImage(w http.ResponseWriter, req *http.Request) {
+func ScrapeReviewImageHandler(w http.ResponseWriter, req *http.Request) {
 	_ = godotenv.Load()
 	scrapeUrl := os.Getenv("SCRAPE_URL")
 	reviewId := mux.Vars(req)["id"]
-	data, err := apiConfig.DB.GetVendorReviewByReviewId(req.Context(), reviewId)
+	data, err := config.DB.GetVendorReviewByReviewId(req.Context(), reviewId)
 	if err != nil {
-		http.Error(w, "No resource match your review id", http.StatusNotFound)
+		utils.NewErrorResponse(w, http.StatusNotFound, "No resource match your review id")
 		return
 	}
 
 	reviewUrl := data.LinkToSource
 
-	resp, err := scrapeReviewVendorImage(scrapeUrl, reviewId, reviewUrl)
+	resp, err := utils.ScrapeReviewVendorImage(scrapeUrl, reviewId, reviewUrl)
 	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		utils.NewErrorResponse(w, http.StatusInternalServerError, "Interal error from database")
 		return	
 	}
 
@@ -204,21 +200,21 @@ func (apiConfig *apiConfig) handleScrapeReviewImage(w http.ResponseWriter, req *
 }
 
 
-func (apiConfig *apiConfig) handleListImagesByVendorId(w http.ResponseWriter, req *http.Request) {
+func GetImagesByVendorIdHandler(w http.ResponseWriter, req *http.Request) {
 	type ImageResponse struct {
 		ReviewID string `json:"review_id"`
 		Images []string `json:"images"`
 	}
 	vendorId := req.URL.Query().Get("id")
     if vendorId == "" {
-        http.Error(w, "Missing 'id' query parameter", http.StatusBadRequest)
+		utils.NewErrorResponse(w, http.StatusBadRequest, "Missing 'id' query parameter")
         return
     }
 	
 	// Get the vendor id from the database
-	vendorReviews, err := apiConfig.DB.GetVendorReviewByVendorId(req.Context(), vendorId)
+	vendorReviews, err := config.DB.GetVendorReviewByVendorId(req.Context(), vendorId)
 	if err != nil {
-		http.Error(w, "Vendor ID not found", http.StatusNotFound)
+		utils.NewErrorResponse(w, http.StatusNotFound, "Vendor ID not found")
         return
 	}
 
@@ -255,7 +251,7 @@ func (apiConfig *apiConfig) handleListImagesByVendorId(w http.ResponseWriter, re
     
     jsonResponse, err := json.Marshal(response)
     if err != nil {
-        http.Error(w, "Error generating JSON response: "+err.Error(), http.StatusInternalServerError)
+		utils.NewErrorResponse(w, http.StatusInternalServerError, "Error generating JSON response: ")
         return
     }
 
@@ -264,7 +260,7 @@ func (apiConfig *apiConfig) handleListImagesByVendorId(w http.ResponseWriter, re
 }
 
 
-func (apiConfig *apiConfig) handleGetImageByReviewId(w http.ResponseWriter, req *http.Request) {
+func GetImageByReviewIdHandler(w http.ResponseWriter, req *http.Request) {
 	reviewId := req.URL.Query().Get("review-id")
 	imgId := req.URL.Query().Get("image-id")
 
@@ -272,8 +268,8 @@ func (apiConfig *apiConfig) handleGetImageByReviewId(w http.ResponseWriter, req 
 
     img, err := os.Open(Path)
     if err != nil {
-        apiConfig.logger.Fatal(err)
-		http.Error(w, "Image not found", http.StatusNotFound)
+		utils.NewErrorResponse(w, http.StatusNotFound, "Image not found")
+        log.Fatal(err)
 		return
     }
     defer img.Close()

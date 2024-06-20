@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"bytes"
@@ -6,17 +6,29 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"weddi.org/vendor-api/config"
 )
 
+type VendorReviewHelper struct {
+	ReviewID 	 string `json:"review_id,omitempty"`
+	VendorID     string `json:"vendor_id"`
+	VendorName   string `json:"vendor_name"`
+	Poster       string `json:"poster"`
+	Date         string `json:"date"`
+	Rating       int32  `json:"rating"`
+	Source       string `json:"source"`
+	Content      string `json:"content"`
+	LinkToSource string `json:"link_to_source"`
+}
 
-func (apiConfig *apiConfig) getVendorReviewByReviewId(req *http.Request, reviewId string) ([]byte, error){
-	data, err := apiConfig.DB.GetVendorReviewByReviewId(req.Context(), reviewId)
+func GetVendorReviewByReviewId(req *http.Request, reviewId string) ([]byte, error){
+	data, err := config.DB.GetVendorReviewByReviewId(req.Context(), reviewId)
 	if err != nil {
-		apiConfig.logger.Fatal(err)
+		log.Fatal("Database Error, Cannot get the resource")
 		return nil, err
 	}
 
-	var convertedData = VendorReview{
+	var convertedData = VendorReviewHelper{
 		ReviewID:     data.ReviewID,
 		VendorID:     data.VendorID,
 		VendorName:   data.VendorName,
@@ -29,22 +41,22 @@ func (apiConfig *apiConfig) getVendorReviewByReviewId(req *http.Request, reviewI
 	}
 	vendorReviews, err := json.Marshal(convertedData)
 	if err != nil {
-		apiConfig.logger.Fatal(err)
+		log.Fatal(err)
 		return nil, err
 	}
 	return vendorReviews, nil
 }
 
-func (apiConfig *apiConfig) getVendorReviewByVendorId(req *http.Request, vendorId string) ([]byte, error){
-	data, err := apiConfig.DB.GetVendorReviewByVendorId(req.Context(), vendorId)
+func GetVendorReviewByVendorId(req *http.Request, vendorId string) ([]byte, error){
+	data, err := config.DB.GetVendorReviewByVendorId(req.Context(), vendorId)
 	if err != nil {
-		apiConfig.logger.Fatal(err)
+		log.Fatal(err)
 		return nil, err
 	}
 
-	var convertedData []VendorReview
+	var convertedData []VendorReviewHelper
 	for _, vendorReview := range data {
-		convertedData = append(convertedData, VendorReview{
+		convertedData = append(convertedData, VendorReviewHelper{
             ReviewID:     vendorReview.ReviewID,
             VendorID:     vendorReview.VendorID,
             VendorName:   vendorReview.VendorName,
@@ -58,13 +70,13 @@ func (apiConfig *apiConfig) getVendorReviewByVendorId(req *http.Request, vendorI
 	}
 	vendorReviews, err := json.Marshal(convertedData)
 	if err != nil {
-		apiConfig.logger.Fatal(err)
+		log.Fatal(err)
 		return nil, err
 	}
 	return vendorReviews, nil
 }
 
-func scrapeReviewVendorImage(scrapeUrl string, reviewId string, reviewUrl string) ([]byte, error) {
+func ScrapeReviewVendorImage(scrapeUrl string, reviewId string, reviewUrl string) ([]byte, error) {
 	contentType := "application/json"
 	postBody, _ := json.Marshal(map[string]string{
 		"review_id": reviewId,

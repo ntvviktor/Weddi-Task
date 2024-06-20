@@ -1,26 +1,42 @@
 import asyncio
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
 
-from async_scrape_v2 import scrape_review_image
+from image_scraper import ImageScraper
 
 app = Flask(__name__)
 
-@app.route("/api/scrape", methods=["POST"])
-def scrape():
-    data = request.get_json()
-    review_id = data["review_id"]
-    review_url = data["review_url"]
-    success = asyncio.run(scrape_review_image(review_id, review_url))
+class ScraperAPI():
+    # Contructor for ScrapeAPI
+    def __init__(self) -> None:
+        self.app = Flask(__name__)
+        self.register_endpoints()
     
-    if success:
-        return jsonify({"status": "OK", "message": "Scraping successful"}), 200
-    else:
-        return jsonify({"status": "error", "message": "Scraping failed"}), 500
-    
+    @property
+    def app(self) -> Flask:
+        return self._app
 
-def main():
-    app.run(debug=True)
+    @app.setter
+    def app(self, app: Flask) -> None:
+        self._app = app
 
+    def register_endpoints(self) -> None:
+        self.app.add_url_rule(rule="/v1/scrape", endpoint="scrape", view_func=self.scrape, methods=["POST"])
+
+    def scrape(self) -> Response:
+        data = request.get_json()
+        review_id = data["review_id"]
+        review_url = data["review_url"]
+        scraper = ImageScraper()
+        success = asyncio.run(scraper.scrape_review_image(review_id, review_url))
+        
+        if success:
+            return jsonify({"status": "ok", "message": "Scraping successful"})
+        else:
+            return jsonify({"status": "error", "message": "Scraping failed"})
+
+    def run(self, debug=True, port=5000) -> None:
+        self.app.run(debug=debug, port=port)
 
 if __name__ == "__main__":
-    main()
+    scraperAPI = ScraperAPI()
+    scraperAPI.run()
