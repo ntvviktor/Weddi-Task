@@ -8,6 +8,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
+
 	"weddi.org/vendor-api/internal/database"
 )
 

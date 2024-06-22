@@ -1,15 +1,21 @@
+import os
 import mariadb
 import sys
 import uuid
 import csv
+from dotenv import load_dotenv
+load_dotenv()
+user = os.getenv('DB_USER')
+passw = os.getenv('DB_PASSWORD')
+db_name = os.getenv("DB_NAME")
 
 try:
     conn = mariadb.connect(
-        user="viktor",
-        password="password",
+        user=user,
+        password=passw,
         host="127.0.0.1",
         port=3306,
-        database="weddi"
+        database=db_name
     )
 
     data = []
